@@ -1,61 +1,77 @@
 name: YuGiOh Tokens Release
 on:
-    push:
-        branches:
-            - main
-    workflow_dispatch:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 jobs:
-    release:
-        runs-on: ubuntu-latest
+  release:
+    runs-on: ubuntu-latest
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@v3
-              with:
-                  fetch-depth: 0
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
 
-            - name: Delete existing release
-              uses: dev-drprasad/delete-tag-and-release@v0.2.1
-              with:
-                  tag_name: latest
-                  delete_release: true
-                  repo: ${{ github.repository }}
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-              continue-on-error: true
+      - name: Delete existing release
+        uses: dev-drprasad/delete-tag-and-release@v0.2.1
+        with:
+          tag_name: latest
+          delete_release: true
+          repo: ${{ github.repository }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
-            - name: Generate checksums
-              run: |
-                  sha256sum token.json > token.json.sha256
+      - name: Generate checksums
+        run: |
+          sha256sum token.json > token.json.sha256
 
-            - name: Build release body
-              id: build_release_body
-              run: |
-                  if ! command -v jq >/dev/null; then
-                    sudo apt-get update -y
-                    sudo apt-get install -y jq
-                  fi
-                  count=$(jq 'keys | length' token.json)
-                  echo "body<<EOF" >> $GITHUB_OUTPUT
-                  echo "共有 ${count} 张 token" >> $GITHUB_OUTPUT
-                  echo "" >> $GITHUB_OUTPUT
-                  echo "| id | name | description | attribute | ATK | DEF | level | typeline |" >> $GITHUB_OUTPUT
-                  echo "| :---: | :---: | :--- | :---: | :---: | :---: | :---: | :--- |" >> $GITHUB_OUTPUT
-                  jq -r 'to_entries | sort_by(.key) | .[] | "| \(.key) | \(.value.name // "" | gsub("\\|"; "\\\\|")) | \(.value.description // "" | gsub("[\n\r]+"; " ") | gsub("\\|"; "\\\\|")) | \(.value.attribute // "") | \(if .value.atk == -1 then "？" else (.value.atk // "") end) | \(if .value.def == -1 then "？" else (.value.def // "") end) | \(if .value.level == -1 then "？" else (.value.level // "") end) | \(.value.typeline // "" | gsub("^【|】$"; "") | gsub("\\|"; "\\\\|")) |"' token.json >> $GITHUB_OUTPUT
-                  echo "EOF" >> $GITHUB_OUTPUT
-              shell: bash
+      - name: Build release body
+        id: build_release_body
+        run: |
+          if ! command -v jq >/dev/null; then
+            sudo apt-get update -y
+            sudo apt-get install -y jq
+          fi
 
-            - name: Create/Update release
-              id: create_release
-              uses: softprops/action-gh-release@v1
-              with:
-                  tag_name: latest
-                  name: YuGiOh Tokens Data
-                  body: ${{ steps.build_release_body.outputs.body }}
-                  files: |
-                      ./token.json
-                      ./*.sha256
-                  draft: false
-                  prerelease: false
-              env:
-                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo "body<<EOF" >> $GITHUB_OUTPUT
+          count=$(jq 'keys | length' token.json)
+          echo "共有 ${count} 张 token" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+
+          if [ -f new.txt ]; then
+              echo "" >> $GITHUB_OUTPUT
+              echo "## 未收录 Token " >> $GITHUB_OUTPUT
+              count_new=$(grep -c . new.txt || echo 0)
+              echo "发现 ${count_new} 个未收录 Token (未获得正式卡密):" >> $GITHUB_OUTPUT
+              echo "" >> $GITHUB_OUTPUT
+              while IFS= read -r line; do
+                  echo "- ${line}" >> $GITHUB_OUTPUT
+              done < new.txt
+          fi
+
+          echo "" >> $GITHUB_OUTPUT
+          echo "## Token 列表" >> $GITHUB_OUTPUT
+          echo "| id | name | description | attribute | ATK | DEF | level | typeline |" >> $GITHUB_OUTPUT
+          echo "| :---: | :---: | :--- | :---: | :---: | :---: | :---: | :--- |" >> $GITHUB_OUTPUT
+          jq -r 'to_entries | sort_by(.key) | .[] | "| \(.key) | \(.value.name // "" | gsub("\\|"; "\\\\|")) | \(.value.description // "" | gsub("[\n\r]+"; " ") | gsub("\\|"; "\\\\|")) | \(.value.attribute // "") | \(if .value.atk == -1 then "？" else (.value.atk // "") end) | \(if .value.def == -1 then "？" else (.value.def // "") end) | \(if .value.level == -1 then "？" else (.value.level // "") end) | \(.value.typeline // "" | gsub("^【|】$"; "") | gsub("\\|"; "\\\\|")) |"' token.json >> $GITHUB_OUTPUT
+
+          echo "EOF" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Create/Update release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: latest
+          name: YuGiOh Tokens Data
+          body: ${{ steps.build_release_body.outputs.body }}
+          files: |
+            ./token.json
+            ./*.sha256
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
