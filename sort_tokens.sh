@@ -1,5 +1,3 @@
-#!/bin/bash
-
 # 检查 jq 是否安装
 if ! command -v jq &> /dev/null; then
     echo "错误: 未找到 jq 命令。请先安装 jq。"
