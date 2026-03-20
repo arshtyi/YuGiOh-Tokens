@@ -28,46 +28,12 @@ jobs:
         run: |
           sha256sum token.json > token.json.sha256
 
-      - name: Build release body
-        id: build_release_body
-        run: |
-          if ! command -v jq >/dev/null; then
-            sudo apt-get update -y
-            sudo apt-get install -y jq
-          fi
-
-          echo "body<<EOF" >> $GITHUB_OUTPUT
-          count=$(jq 'keys | length' token.json)
-          echo "共有 ${count} 张 token" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-
-          if [ -f new.txt ]; then
-              echo "" >> $GITHUB_OUTPUT
-              echo "## 未收录 Token " >> $GITHUB_OUTPUT
-              count_new=$(grep -c . new.txt || echo 0)
-              echo "发现 ${count_new} 个未收录 Token (未获得正式卡密):" >> $GITHUB_OUTPUT
-              echo "" >> $GITHUB_OUTPUT
-              while IFS= read -r line; do
-                  echo "- ${line}" >> $GITHUB_OUTPUT
-              done < new.txt
-          fi
-
-          echo "" >> $GITHUB_OUTPUT
-          echo "## Token 列表" >> $GITHUB_OUTPUT
-          echo "| id | name | description | attribute | ATK | DEF | level | typeline |" >> $GITHUB_OUTPUT
-          echo "| :---: | :---: | :--- | :---: | :---: | :---: | :---: | :--- |" >> $GITHUB_OUTPUT
-          jq -r 'to_entries | sort_by(.key) | .[] | "| \(.key) | \(.value.name // "" | gsub("\\|"; "\\\\|")) | \(.value.description // "" | gsub("[\n\r]+"; " ") | gsub("\\|"; "\\\\|")) | \(.value.attribute // "") | \(if .value.atk == -1 then "？" else (.value.atk // "") end) | \(if .value.def == -1 then "？" else (.value.def // "") end) | \(if .value.level == -1 then "？" else (.value.level // "") end) | \(.value.typeline // "" | gsub("^【|】$"; "") | gsub("\\|"; "\\\\|")) |"' token.json >> $GITHUB_OUTPUT
-
-          echo "EOF" >> $GITHUB_OUTPUT
-        shell: bash
-
       - name: Create/Update release
         id: create_release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: latest
           name: YuGiOh Tokens Data
-          body: ${{ steps.build_release_body.outputs.body }}
           files: |
             ./token.json
             ./*.sha256
